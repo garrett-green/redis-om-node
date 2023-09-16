@@ -1,9 +1,20 @@
-import { Client, CreateOptions, RedisConnection, RedisHashData, RedisJsonData } from '../client'
-import { Entity, EntityId, EntityKeyName } from '../entity'
-import { buildRediSearchSchema } from '../indexer'
-import { Schema } from '../schema'
-import { Search, RawSearch } from '../search'
-import { fromRedisHash, fromRedisJson, toRedisHash, toRedisJson } from '../transformer'
+import {
+  Client,
+  CreateOptions,
+  RedisConnection,
+  RedisHashData,
+  RedisJsonData,
+} from '../client';
+import { Entity, EntityId, EntityKeyName } from '../entity';
+import { buildRediSearchSchema } from '../indexer';
+import { Schema } from '../schema';
+import { Search, RawSearch } from '../search';
+import {
+  fromRedisHash,
+  fromRedisJson,
+  toRedisHash,
+  toRedisJson,
+} from '../transformer';
 
 /**
  * A repository is the main interaction point for reading, writing, and
@@ -42,10 +53,9 @@ import { fromRedisHash, fromRedisJson, toRedisHash, toRedisJson } from '../trans
  * ```
  */
 export class Repository {
-
   // NOTE: Not using "#" private as the spec needs to check calls on this class. Will be resolved when Client class is removed.
-  private client: Client
-  #schema: Schema
+  private client: Client;
+  #schema: Schema;
 
   /**
    * Creates a new {@link Repository}.
@@ -54,12 +64,12 @@ export class Repository {
    * @param client A client to talk to Redis.
    */
   constructor(schema: Schema, clientOrConnection: Client | RedisConnection) {
-    this.#schema = schema
+    this.#schema = schema;
     if (clientOrConnection instanceof Client) {
-      this.client = clientOrConnection
+      this.client = clientOrConnection;
     } else {
-      this.client = new Client()
-      this.client.useNoClose(clientOrConnection)
+      this.client = new Client();
+      this.client.useNoClose(clientOrConnection);
     }
   }
 
@@ -69,35 +79,37 @@ export class Repository {
    * RediSearch and RedisJSON are installed on your instance of Redis.
    */
   async createIndex() {
-
-    const currentIndexHash = await this.client.get(this.#schema.indexHashName)
-    const incomingIndexHash = this.#schema.indexHash
+    const currentIndexHash = await this.client.get(this.#schema.indexHashName);
+    const incomingIndexHash = this.#schema.indexHash;
 
     if (currentIndexHash !== incomingIndexHash) {
-
-      await this.dropIndex()
+      await this.dropIndex();
 
       const {
-        indexName, indexHashName, dataStructure,
-        schemaName: prefix, useStopWords, stopWords
-      } = this.#schema
+        indexName,
+        indexHashName,
+        dataStructure,
+        schemaName: prefix,
+        useStopWords,
+        stopWords,
+      } = this.#schema;
 
-      const schema = buildRediSearchSchema(this.#schema)
+      const schema = buildRediSearchSchema(this.#schema);
       const options: CreateOptions = {
         ON: dataStructure,
-        PREFIX: `${prefix}:`
-      }
+        PREFIX: `${prefix}:`,
+      };
 
       if (useStopWords === 'OFF') {
-        options.STOPWORDS = []
+        options.STOPWORDS = [];
       } else if (useStopWords === 'CUSTOM') {
-        options.STOPWORDS = stopWords
+        options.STOPWORDS = stopWords;
       }
 
       await Promise.all([
         this.client.createIndex(indexName, schema, options),
-        this.client.set(indexHashName, incomingIndexHash)
-      ])
+        this.client.set(indexHashName, incomingIndexHash),
+      ]);
     }
   }
 
@@ -110,16 +122,16 @@ export class Repository {
     try {
       await Promise.all([
         this.client.unlink(this.#schema.indexHashName),
-        this.client.dropIndex(this.#schema.indexName)
-      ])
+        this.client.dropIndex(this.#schema.indexName),
+      ]);
     } catch (e) {
       /* NOTE: It would be better if this error handler was only around the call
          to `.dropIndex`. Might muss up the code a bit though. Life is full of
          tough choices. */
-      if (e instanceof Error && e.message === "Unknown Index name") {
+      if (e instanceof Error && e.message === 'Unknown Index name') {
         // no-op: the thing we are dropping doesn't exist
       } else {
-        throw e
+        throw e;
       }
     }
   }
@@ -131,7 +143,7 @@ export class Repository {
    * @param entity The Entity to save.
    * @returns A copy of the provided Entity with EntityId and EntityKeyName properties added.
    */
-  async save(entity: Entity): Promise<Entity>
+  async save(entity: Entity): Promise<Entity>;
 
   /**
    * Insert or update the {@link Entity} to Redis using the provided entityId.
@@ -140,25 +152,32 @@ export class Repository {
    * @param entity The Entity to save.
    * @returns A copy of the provided Entity with EntityId and EntityKeyName properties added.
    */
-  async save(id: string, entity: Entity): Promise<Entity>
+  async save(id: string, entity: Entity): Promise<Entity>;
 
-  async save(entityOrId: Entity | string, maybeEntity?: Entity): Promise<Entity> {
-    let entity: Entity | undefined
-    let entityId: string | undefined
+  async save(
+    entityOrId: Entity | string,
+    maybeEntity?: Entity
+  ): Promise<Entity> {
+    let entity: Entity | undefined;
+    let entityId: string | undefined;
 
     if (typeof entityOrId !== 'string') {
-      entity = entityOrId
-      entityId = entity[EntityId] ?? await this.#schema.generateId()
+      entity = entityOrId;
+      entityId = entity[EntityId] ?? (await this.#schema.generateId());
     } else {
-      entity = maybeEntity
-      entityId = entityOrId
+      entity = maybeEntity;
+      entityId = entityOrId;
     }
 
-    const keyName = `${this.#schema.schemaName}:${entityId}`
-    const clonedEntity = { ...entity, [EntityId]: entityId, [EntityKeyName]: keyName }
-    await this.writeEntity(clonedEntity)
+    const keyName = `${this.#schema.schemaName}:${entityId}`;
+    const clonedEntity = {
+      ...entity,
+      [EntityId]: entityId,
+      [EntityKeyName]: keyName,
+    };
+    await this.writeEntity(clonedEntity);
 
-    return clonedEntity
+    return clonedEntity;
   }
 
   /**
@@ -168,7 +187,7 @@ export class Repository {
    * @param id The ID of the {@link Entity} you seek.
    * @returns The matching Entity.
    */
-  async fetch(id: string): Promise<Entity>
+  async fetch(id: string): Promise<Entity>;
 
   /**
    * Read and return the {@link Entity | Entities} from Redis with the given IDs. If
@@ -177,7 +196,7 @@ export class Repository {
    * @param ids The IDs of the {@link Entity | Entities} you seek.
    * @returns The matching Entities.
    */
-  async fetch(...ids: string[]): Promise<Entity[]>
+  async fetch(...ids: string[]): Promise<Entity[]>;
 
   /**
    * Read and return the {@link Entity | Entities} from Redis with the given IDs. If
@@ -186,14 +205,14 @@ export class Repository {
    * @param ids The IDs of the {@link Entity | Entities} you seek.
    * @returns The matching Entities.
    */
-  async fetch(ids: string[]): Promise<Entity[]>
+  async fetch(ids: string[]): Promise<Entity[]>;
 
   async fetch(ids: string | string[]): Promise<Entity | Entity[]> {
-    if (arguments.length > 1) return this.readEntities([...arguments])
-    if (Array.isArray(ids)) return this.readEntities(ids)
+    if (arguments.length > 1) return this.readEntities([...arguments]);
+    if (Array.isArray(ids)) return this.readEntities(ids);
 
-    const [entity] = await this.readEntities([ids])
-    return entity!
+    const [entity] = await this.readEntities([ids]);
+    return entity!;
   }
 
   /**
@@ -202,7 +221,7 @@ export class Repository {
    *
    * @param id The ID of the {@link Entity} you wish to delete.
    */
-  async remove(id: string): Promise<void>
+  async remove(id: string): Promise<void>;
 
   /**
    * Remove the {@link Entity | Entities} from Redis for the given ids. If a
@@ -210,7 +229,7 @@ export class Repository {
    *
    * @param ids The IDs of the {@link Entity | Entities} you wish to delete.
    */
-  async remove(...ids: string[]): Promise<void>
+  async remove(...ids: string[]): Promise<void>;
 
   /**
    * Remove the {@link Entity | Entities} from Redis for the given ids. If a
@@ -218,18 +237,21 @@ export class Repository {
    *
    * @param ids The IDs of the {@link Entity | Entities} you wish to delete.
    */
-  async remove(ids: string[]): Promise<void>
+  async remove(ids: string[]): Promise<void>;
 
   async remove(ids: string | string[]): Promise<void> {
     // TODO: clean code
-    const keys = arguments.length > 1
-      ? this.makeKeys([...arguments])
-      : Array.isArray(ids)
+    const keys =
+      arguments.length > 1
+        ? this.makeKeys([...arguments])
+        : Array.isArray(ids)
         ? this.makeKeys(ids)
-        : ids ? this.makeKeys([ids]) : []
+        : ids
+        ? this.makeKeys([ids])
+        : [];
 
-    if (keys.length === 0) return
-    await this.client.unlink(...keys)
+    if (keys.length === 0) return;
+    await this.client.unlink(...keys);
   }
 
   /**
@@ -239,7 +261,7 @@ export class Repository {
    * @param id The ID of the {@link Entity} to set and expiration for.
    * @param ttlInSeconds The time to live in seconds.
    */
-  async expire(id: string, ttlInSeconds: number): Promise<void>
+  async expire(id: string, ttlInSeconds: number): Promise<void>;
 
   /**
    * Set the time to live of the {@link Entity | Entities} in Redis with the given
@@ -247,16 +269,56 @@ export class Repository {
    *
    * @param ids The IDs of the {@link Entity | Entities} you wish to delete.
    */
-  async expire(ids: string[], ttlInSeconds: number): Promise<void>
+  async expire(ids: string[], ttlInSeconds: number): Promise<void>;
 
-  async expire(idOrIds: string | string[], ttlInSeconds: number): Promise<void> {
-    const ids = typeof(idOrIds) === 'string' ? [ idOrIds ] : idOrIds
+  async expire(
+    idOrIds: string | string[],
+    ttlInSeconds: number
+  ): Promise<void> {
+    const ids = typeof idOrIds === 'string' ? [idOrIds] : idOrIds;
     await Promise.all(
-      ids.map(id => {
-        const key = this.makeKey(id)
-        return this.client.expire(key, ttlInSeconds)
+      ids.map((id) => {
+        const key = this.makeKey(id);
+        return this.client.expire(key, ttlInSeconds);
       })
-    )
+    );
+  }
+
+  /**
+   * Use Date object to set the {@link Entity}'s time to live. If the {@link Entity}
+   * is not found, does nothing.
+   *
+   * @param id The ID of the {@link Entity} to set an expiration date for.
+   * @param expirationDate The time the data should expire.
+   */
+  async expireAt(id: string, expirationDate: Date): Promise<void>;
+
+  /**
+   * Use Date object to set the {@link Entity | Entities} in Redis with the given
+   * ids. If a particular {@link Entity} is not found, does nothing.
+   *
+   * @param ids The IDs of the {@link Entity | Entities} to set an expiration date for.
+   * @param expirationDate The time the data should expire.
+   */
+  async expireAt(ids: string[], expirationDate: Date): Promise<void>;
+
+  async expireAt(idOrIds: string | string[], expirationDate: Date) {
+    const ids = typeof idOrIds === 'string' ? [idOrIds] : idOrIds;
+    const timeNow: number = Date.now();
+    if (Date.now() >= expirationDate.getTime()) {
+      throw new Error(
+        `${expirationDate.toString()} is invalid. Expiration date must be in the future.`
+      );
+    }
+    const ttlInSeconds: number = Math.round(
+      (expirationDate.getTime() - timeNow) / 1000
+    );
+    await Promise.all(
+      ids.map((id) => {
+        const key = this.makeKey(id);
+        return this.client.expire(key, ttlInSeconds);
+      })
+    );
   }
 
   /**
@@ -266,7 +328,7 @@ export class Repository {
    * @returns A {@link Search} object.
    */
   search(): Search {
-    return new Search(this.#schema, this.client)
+    return new Search(this.#schema, this.client);
   }
 
   /**
@@ -281,61 +343,75 @@ export class Repository {
    * @returns A {@link RawSearch} object.
    */
   searchRaw(query: string): RawSearch {
-    return new RawSearch(this.#schema, this.client, query)
+    return new RawSearch(this.#schema, this.client, query);
   }
 
   private async writeEntity(entity: Entity): Promise<void> {
-    return this.#schema.dataStructure === 'HASH' ? this.writeEntityToHash(entity) : this.writeEntityToJson(entity)
+    return this.#schema.dataStructure === 'HASH'
+      ? this.writeEntityToHash(entity)
+      : this.writeEntityToJson(entity);
   }
 
   private async readEntities(ids: string[]): Promise<Entity[]> {
-    return this.#schema.dataStructure === 'HASH' ? this.readEntitiesFromHash(ids) : this.readEntitiesFromJson(ids)
+    return this.#schema.dataStructure === 'HASH'
+      ? this.readEntitiesFromHash(ids)
+      : this.readEntitiesFromJson(ids);
   }
 
   // TODO: make this actually private... like with #
   private async writeEntityToHash(entity: Entity): Promise<void> {
-    const keyName = entity[EntityKeyName]!
-    const hashData: RedisHashData = toRedisHash(this.#schema, entity)
+    const keyName = entity[EntityKeyName]!;
+    const hashData: RedisHashData = toRedisHash(this.#schema, entity);
     if (Object.keys(hashData).length === 0) {
-      await this.client.unlink(keyName)
+      await this.client.unlink(keyName);
     } else {
-      await this.client.hsetall(keyName, hashData)
+      await this.client.hsetall(keyName, hashData);
     }
   }
 
   private async readEntitiesFromHash(ids: string[]): Promise<Entity[]> {
     return Promise.all(
       ids.map(async (entityId) => {
-        const keyName = this.makeKey(entityId)
-        const hashData = await this.client.hgetall(keyName)
-        const entityData = fromRedisHash(this.#schema, hashData)
-        const entity = { ...entityData, [EntityId]: entityId, [EntityKeyName]: keyName }
-        return entity
-      }))
+        const keyName = this.makeKey(entityId);
+        const hashData = await this.client.hgetall(keyName);
+        const entityData = fromRedisHash(this.#schema, hashData);
+        const entity = {
+          ...entityData,
+          [EntityId]: entityId,
+          [EntityKeyName]: keyName,
+        };
+        return entity;
+      })
+    );
   }
 
   private async writeEntityToJson(entity: Entity): Promise<void> {
-    const keyName = entity[EntityKeyName]!
-    const jsonData: RedisJsonData = toRedisJson(this.#schema, entity)
-    await this.client.jsonset(keyName, jsonData)
+    const keyName = entity[EntityKeyName]!;
+    const jsonData: RedisJsonData = toRedisJson(this.#schema, entity);
+    await this.client.jsonset(keyName, jsonData);
   }
 
   private async readEntitiesFromJson(ids: string[]): Promise<Entity[]> {
     return Promise.all(
       ids.map(async (entityId) => {
-        const keyName = this.makeKey(entityId)
-        const jsonData = await this.client.jsonget(keyName) ?? {}
-        const entityData = fromRedisJson(this.#schema, jsonData)
-        const entity = {...entityData, [EntityId]: entityId, [EntityKeyName]: keyName }
-        return entity
-      }))
+        const keyName = this.makeKey(entityId);
+        const jsonData = (await this.client.jsonget(keyName)) ?? {};
+        const entityData = fromRedisJson(this.#schema, jsonData);
+        const entity = {
+          ...entityData,
+          [EntityId]: entityId,
+          [EntityKeyName]: keyName,
+        };
+        return entity;
+      })
+    );
   }
 
   private makeKeys(ids: string[]): string[] {
-    return ids.map(id => this.makeKey(id))
+    return ids.map((id) => this.makeKey(id));
   }
 
   private makeKey(id: string): string {
-    return `${this.#schema.schemaName}:${id}`
+    return `${this.#schema.schemaName}:${id}`;
   }
 }
