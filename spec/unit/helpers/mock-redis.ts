@@ -21,6 +21,7 @@ export const redis = {
   hGetAll: vi.fn(),
   expire: vi.fn(),
   expireAt: vi.fn(),
+  exists: vi.fn(),
   sendCommand: vi.fn(),
   unlink: vi.fn(),
   multi: vi.fn().mockImplementation(() => multi)

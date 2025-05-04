@@ -294,6 +294,34 @@ export class Repository<T extends Entity = Record<string, any>> {
   }
 
   /**
+   * Returns boolean representing existence of an {@link Entity} in Redis for the given id.
+   *
+   * @param id The ID of the {@link Entity} you wish to check for existence.
+   */
+  async exists(id: string): Promise<boolean>
+
+  /**
+   * Returns boolean representing existence of {@link Entity | Entities} in Redis. Returns `true` if ALL provided IDs exist otherwise `false`.
+   *
+   * @param ids The IDs of the {@link Entity | Entities} you wish to check for existence.
+   */
+  async exists(...ids: string[]): Promise<boolean>
+
+  /**
+   * Returns boolean representing existence of {@link Entity | Entities} in Redis. Returns `true` if ALL provided IDs exist otherwise `false`.
+   *
+   * @param ids The IDs of the {@link Entity | Entities} you wish to check for existence.
+   */
+  async exists(ids: string[]): Promise<boolean>
+
+  async exists(idOrIds: string | string[]): Promise<boolean> {    
+    const keys = Array.isArray(idOrIds) ? this.makeKeys([...new Set(idOrIds).values()]) : this.makeKeys([idOrIds]);
+    const numberOfKeysThatExist = await this.client.exists(...keys);
+    return numberOfKeysThatExist === keys.length;
+
+  }
+
+  /**
    * Kicks off the process of building a query. Requires that RediSearch (and optionally
    * RedisJSON) be installed on your instance of Redis.
    *
